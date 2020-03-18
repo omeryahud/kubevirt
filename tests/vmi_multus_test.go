@@ -26,8 +26,6 @@ import (
 	"strings"
 	"time"
 
-	netutils "k8s.io/utils/net"
-
 	expect "github.com/google/goexpect"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -38,8 +36,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v13 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-
-	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/api"
 
 	v1 "kubevirt.io/client-go/api/v1"
 	"kubevirt.io/client-go/kubecli"
@@ -713,42 +709,6 @@ var _ = Describe("SRIOV", func() {
 			// it's hard to match them.
 		})
 
-		It("[test_id:1754]should create a virtual machine with sriov interface with all pci devices on the root bus", func() {
-			vmi := getSriovVmi([]string{"sriov"})
-			vmi.Annotations = map[string]string{
-				v1.PlacePCIDevicesOnRootComplex: "true",
-			}
-			startVmi(vmi)
-			waitVmi(vmi)
-
-			By("checking KUBEVIRT_RESOURCE_NAME_<networkName> variable is defined in pod")
-			vmiPod := tests.GetRunningPodByVirtualMachineInstance(vmi, tests.NamespaceTestDefault)
-			out, err := tests.ExecuteCommandOnPod(
-				virtClient,
-				vmiPod,
-				"compute",
-				[]string{"sh", "-c", "echo $KUBEVIRT_RESOURCE_NAME_sriov"},
-			)
-			Expect(err).ToNot(HaveOccurred())
-
-			expectedSriovResourceName := fmt.Sprintf("%s\n", sriovResourceName)
-			Expect(out).To(Equal(expectedSriovResourceName))
-
-			checkDefaultInterfaceInPod(vmi)
-
-			By("checking virtual machine instance has two interfaces")
-			checkInterfacesInGuest(vmi, []string{"eth0", "eth1"})
-
-			domSpec, err := tests.GetRunningVMIDomainSpec(vmi)
-			rootPortController := []api.Controller{}
-			for _, c := range domSpec.Devices.Controllers {
-				if c.Model == "pcie-root-port" {
-					rootPortController = append(rootPortController, c)
-				}
-			}
-			Expect(rootPortController).To(HaveLen(0), "libvirt should not add additional buses to the root one")
-		})
-
 		It("should create a virtual machine with sriov interface and dedicatedCPUs", func() {
 			// In addition to verifying that we can start a VMI with CPU pinning
 			// this also tests if we've correctly calculated the overhead for VFIO devices.
@@ -912,11 +872,7 @@ func checkMacAddress(vmi *v1.VirtualMachineInstance, interfaceName, macAddress s
 }
 
 func pingVirtualMachine(vmi *v1.VirtualMachineInstance, ipAddr, prompt string) {
-	pingString := "ping"
-	if netutils.IsIPv6String(ipAddr) {
-		pingString = "ping -6"
-	}
-	cmdCheck := fmt.Sprintf("%s %s -c 1 -w 5\n", pingString, ipAddr)
+	cmdCheck := fmt.Sprintf("ping %s -c 1 -w 5\n", ipAddr)
 	err := tests.CheckForTextExpecter(vmi, []expect.Batcher{
 		&expect.BSnd{S: "\n"},
 		&expect.BExp{R: prompt},
