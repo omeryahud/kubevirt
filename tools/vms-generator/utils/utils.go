@@ -671,7 +671,7 @@ func createFedoraTemplateFromVM(vm *v1.VirtualMachine) *Template {
 }
 
 func GetTemplateFedora() *Template {
-	vm := getFedoraVMWithNoDisk()
+	vm := getFedoraVMWithoutDisk()
 	initFedora(&vm.Spec.Template.Spec)
 	return createFedoraTemplateFromVM(vm)
 }
